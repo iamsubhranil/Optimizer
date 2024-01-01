@@ -1,0 +1,91 @@
+result = 0
+
+do {
+    for (a = 1; a <= 5; a = a + 1) {
+        b = a + 5
+        c = a * 3
+        d = b - c
+
+        e = 0
+        while (e < a * 3) {
+            f = e + a
+            g = e % 3
+            h = f * g
+
+            result = h + d
+
+            if (result > 10) {
+                if (result > 15) {
+                    j = result * 2
+                    k = j - 5
+                } else {
+                    j = result * 3
+                    k = j + 2
+
+                    for (l = 0; l < 2; l = l + 1) {
+                        m = l * 2
+                        n = m + j
+
+                        result = n * 4
+
+                        if (result > 20) {
+                            o = result * 2
+                        } else if (result < 10) {
+                            o = result + 5
+                        } else {
+                            o = result - 3
+                        }
+                    }
+                }
+            } else if (result < 5) {
+                p = result * 2
+            } else {
+                q = result + 3
+            }
+
+            e = e + 1
+        }
+
+        for (r = 0; r < a; r = r + 1) {
+            s = r * 2
+            t = s + a
+
+            result = t + d
+
+            if (result > 25) {
+                u = result * 3
+            } else if (result < 15) {
+                u = result - 4
+            } else {
+                u = result + 2
+            }
+        }
+    }
+
+    for (v = 0; v < 3; v = v + 1) {
+        w = 0
+        while (w < v * 3) {
+            x = w * 2
+            y = x + v
+
+            result = y * 5
+
+            if (result > 30) {
+                z = result - 2
+            } else if (result < 18) {
+                z = result * 2
+            } else {
+                z = result + 4
+            }
+
+            w = w + 1
+        }
+    }
+} while (result * 32 > result * result)
+
+aa = 8
+if (aa % 2 == 0) {
+    bb = aa * 3
+} else {
+    bb = aa + 5
+}

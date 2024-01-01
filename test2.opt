@@ -1,0 +1,71 @@
+z = 0
+result = 0
+do {
+    for (a = 1; a <= 3; a = a + 1) {
+
+        b = a + 5
+        c = a * 3
+        d = b - c
+
+        e = 0
+        while (e < a * 3) {
+            
+            f = e + a
+            g = e % 3
+            h = f * g
+
+            result = h + d
+
+            if (result > 10) {
+                z = 1
+            } else if (result < 5) {
+                z = 2
+            } else {
+                z = 3
+            }
+
+            e = e + 1
+        }
+
+        for (f = 0; f < a; f = f + 1) {
+            g = 0
+            while (g < f * 2) {
+                h = g * 3
+                i = h + f
+
+                result = result * i + d
+
+                if (result > 15) {
+                    z = z / 8
+                } else if (result < 7) {
+                    z = z / 10
+                } else {
+                    z = z / 15
+                }
+
+                g = g + 1
+            }
+        }
+
+        if (a > 2) {
+            z = z - 1
+        }
+    }
+
+    for (j = 0; j < 2; j = j + 1) {
+        for (k = 0; k < 3; k = k + 1) {
+            l = k * 2
+            m = l + j
+
+            result = m * 4 + result
+
+            if (result > 20) {
+                z = z + result
+            } else if (result < 10) {
+                z = z / result
+            } else {
+                z = z * result
+            }
+        }
+    }
+} while (z * 8 - result > result * result)
