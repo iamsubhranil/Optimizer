@@ -75,7 +75,7 @@ def print_tokens(tokens):
 # unit = identifier | number | "(" expr ")"
 
 def show_err(text, token):
-    print(text)
+    print("[Error]", text)
     info = token[2]
     line = info[0]
     start = info[1]
@@ -288,12 +288,18 @@ def convert_expr(expr, tacs, temp_vars):
     elif expr[0] == 'unit_expr':
         return convert_expr(expr[1], tacs, temp_vars)
     else:
+        if expr[2][1] == '=' and expr[1][0] != 'unit':
+            show_err("Destination of an assignment must be a variable", expr[2])
         left = convert_expr(expr[1], tacs, temp_vars)
         right = convert_expr(expr[3], tacs, temp_vars)
-        tvar = "t" + str(len(temp_vars))
-        temp_vars.append(tvar)
-        tacs.append((expr[2][1], tvar, left, right))
-        return tvar
+        if expr[2][1] != '=':
+            tvar = "t" + str(len(temp_vars))
+            temp_vars.append(tvar)
+            tacs.append((expr[2][1], tvar, left, right))
+            return tvar
+        else:
+            tacs.append((expr[2][1], left, right))
+            return left
 
 def convert_stmt(stmt, tacs, temp_vars):
     if stmt[0] == 'expr':
