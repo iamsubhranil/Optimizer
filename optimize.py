@@ -282,6 +282,27 @@ def print_stmts(stmts, tab=''):
 # OR
 # idx: jump_if_true/jump_if_false condition_var target_idx
 
+class Instruction:
+
+    def __init__(self, operator, *args):
+        self.operator = operator
+        self.args = [*args]
+
+    def is_branch(self):
+        return self.operator in ['jump', 'jump_if_true', 'jump_if_false']
+
+    def __str__(self):
+        if self.operator == '=':
+            return self.args[0] + ' = ' + self.args[1]
+        elif self.operator == 'end':
+            return self.operator
+        elif self.operator == 'jump':
+            return 'jump ' + str(self.args[0])
+        elif self.operator == 'jump_if_false' or self.operator == 'jump_if_true':
+            return self.operator + ' ' + str(self.args[0]) + ' ' + self.args[1]
+        else:
+            return self.args[0] + ' = ' + self.args[1] + ' ' + self.operator + ' ' + self.args[2]
+
 def convert_expr(expr, tacs, temp_vars):
     if expr[0] == 'unit':
         return expr[1][1]
@@ -295,10 +316,10 @@ def convert_expr(expr, tacs, temp_vars):
         if expr[2][1] != '=':
             tvar = "t" + str(len(temp_vars))
             temp_vars.append(tvar)
-            tacs.append((expr[2][1], tvar, left, right))
+            tacs.append(Instruction(expr[2][1], tvar, left, right))
             return tvar
         else:
-            tacs.append((expr[2][1], left, right))
+            tacs.append(Instruction(expr[2][1], left, right))
             return left
 
 def convert_stmt(stmt, tacs, temp_vars):
@@ -308,45 +329,45 @@ def convert_stmt(stmt, tacs, temp_vars):
         condition_idx = len(tacs)
         cond = convert_expr(stmt[1], tacs, temp_vars)
         patch_idx = len(tacs)
-        tacs.append(('jump_if_false', 0, cond))
+        tacs.append(Instruction('jump_if_false', 0, cond))
         for st in stmt[2]:
             convert_stmt(st, tacs, temp_vars)
-        tacs.append(('jump', condition_idx))
-        tacs[patch_idx] = ('jump_if_false', len(tacs), cond)
+        tacs.append(Instruction('jump', condition_idx))
+        tacs[patch_idx].args[0] = len(tacs)
     elif stmt[0] == 'do':
         patch_idx = len(tacs)
         for st in stmt[2]:
             convert_stmt(st, tacs, temp_vars)
         res = convert_expr(stmt[1], tacs, temp_vars)
-        tacs.append(('jump_if_true', patch_idx, res))
+        tacs.append(Instruction('jump_if_true', patch_idx, res))
     elif stmt[0] == 'if':
         res = convert_expr(stmt[1], tacs, temp_vars)
         patch_idx = len(tacs)
-        tacs.append(('jump_if_false', res, 0))
+        tacs.append(Instruction('jump_if_false', 0, res))
         for st in stmt[2]:
             convert_stmt(st, tacs, temp_vars)
-        tacs[patch_idx] = ('jump_if_false', len(tacs), res)
+        tacs[patch_idx].args[0] = len(tacs)
         if stmt[3] != None:
             patch_jump = len(tacs)
-            tacs.append(('jump', 0))
-            tacs[patch_idx] = ('jump_if_false', len(tacs), res)
+            tacs.append(Instruction('jump', 0))
+            tacs[patch_idx] = Instruction('jump_if_false', len(tacs), res)
             if stmt[3][0] == 'else':
                 for st in stmt[3][1]:
                     convert_stmt(st, tacs, temp_vars)
             else:
                 convert_stmt(stmt[3][1], tacs, temp_vars)
-            tacs[patch_jump] = ('jump', len(tacs))
+            tacs[patch_jump].args[0] = len(tacs)
     elif stmt[0] == 'for':
         convert_expr(stmt[1], tacs, temp_vars)
         cond_idx = len(tacs)
         cond_var = convert_expr(stmt[2], tacs, temp_vars)
         patch_idx = len(tacs)
-        tacs.append(('jump_if_false', 0, cond_var))
+        tacs.append(Instruction('jump_if_false', 0, cond_var))
         for st in stmt[4]:
             convert_stmt(st, tacs, temp_vars)
         convert_expr(stmt[3], tacs, temp_vars)
-        tacs.append(('jump', cond_idx))
-        tacs[patch_idx] = ('jump_if_false', len(tacs), cond_var)
+        tacs.append(Instruction('jump', cond_idx))
+        tacs[patch_idx].args[0] = len(tacs)
     else:
         raise RuntimeError("Unknown statement " + str(stmt[0]))
 
@@ -355,44 +376,37 @@ def convert_to_tac(stmts):
     temp_vars = []
     for stmt in stmts:
         convert_stmt(stmt, tacs, temp_vars)
-    tacs.append(('end',))
+    tacs.append(Instruction('end'))
     return tacs
 
 def print_tacs(tacs):
     for idx, tac in enumerate(tacs):
-        print(str(idx) + ": ", end='')
-        if tac[0] == '=':
-            print(tac[1], '=', tac[2])
-        elif tac[0] == 'end':
-            print(tac[0])
-        elif tac[0] == 'jump':
-            print('jump', tac[1])
-        elif tac[0] == 'jump_if_false' or tac[0] == 'jump_if_true':
-            print(tac[0], tac[1], tac[2])
-        else:
-            print(tac[1], '=', tac[2], tac[0], tac[3])
+        print(str(idx) + ":", tac)
 
 # Basic blocks
-# format:
-# array of tuples [(instructions, pred, succ) ...]
-# each tuple containing three members:
-#   instructions: array of instructions in the basic block
-#   pred: array of indices of predecessors of the basic block
-#   succ: array of indices of successors to the basic block
+
+class BasicBlock:
+
+    def __init__(self):
+        self.instructions = None
+        self.pred = [] # idx of basic blocks
+        self.succ = [] # idx of basic blocks
+        self.gen = {} # map of var:def
+        self.kill = {} # map of var:def
 
 def convert_to_bb(tacs):
     basic_blocks = []
     leaders = [0]
     for idx, t in enumerate(tacs):
-        if t[0] == 'jump' or t[0] == 'jump_if_false' or t[0] == 'jump_if_true':
-            if t[1] not in leaders:
-                leaders.append(t[1])
+        if t.is_branch():
+            if t.args[0] not in leaders:
+                leaders.append(t.args[0])
             if idx + 1 not in leaders:
                 leaders.append(idx + 1)
     leaders.sort()
 
     for _ in leaders:
-        basic_blocks.append([[], [], []])
+        basic_blocks.append(BasicBlock())
 
     for idx, l in enumerate(leaders):
         start = l
@@ -400,21 +414,21 @@ def convert_to_bb(tacs):
         if idx != len(leaders) - 1:
             end = leaders[idx + 1]
         instructions = tacs[start:end]
-        succ = basic_blocks[idx][2]
-        if instructions[-1][0] == 'jump' or instructions[-1][0] == 'jump_if_false' or instructions[-1][0] == 'jump_if_true':
-            dest_block = leaders.index(instructions[-1][1])
+        succ = basic_blocks[idx].succ
+        if instructions[-1].is_branch():
+            dest_block = leaders.index(instructions[-1].args[0])
             succ.append(dest_block)
-            basic_blocks[dest_block][1].append(idx)
-            if instructions[-1][0] == 'jump':
-                instructions[-1] = (instructions[-1][0], dest_block)
+            basic_blocks[dest_block].pred.append(idx)
+            if instructions[-1].operator == 'jump':
+                instructions[-1] = Instruction('jump', dest_block)
             else:
-                instructions[-1] = (instructions[-1][0], dest_block, instructions[-1][2])
-        if instructions[-1][0] != 'jump':
+                instructions[-1] = Instruction(instructions[-1].operator, dest_block, instructions[-1].args[1])
+        if instructions[-1].operator != 'jump':
             if idx != len(leaders) - 1:
                 succ.append(idx + 1)
-                basic_blocks[idx + 1][1].append(idx)
+                basic_blocks[idx + 1].pred.append(idx)
 
-        basic_blocks[idx][0] = instructions
+        basic_blocks[idx].instructions = instructions
 
     return basic_blocks
 
@@ -422,8 +436,8 @@ def print_bb(basic_blocks):
     print()
     print()
     for idx, block in enumerate(basic_blocks):
-        print("// block #" + str(idx), ", preds:", block[1], " succs:", block[2])
-        print_tacs(block[0])
+        print("// block #" + str(idx), ", preds:", block.pred, " succs:", block.succ)
+        print_tacs(block.instructions)
         print()
         print()
 
@@ -431,7 +445,7 @@ if __name__ == "__main__":
     tokens = lex(contents)
     # print_tokens(tokens)
     tree = parse(tokens)
-    print_stmts(tree)
+    # print_stmts(tree)
     tacs = convert_to_tac(tree)
     print_tacs(tacs)
     bb = convert_to_bb(tacs)
